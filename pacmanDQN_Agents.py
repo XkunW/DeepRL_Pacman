@@ -23,6 +23,7 @@ from collections import deque
 
 # Neural nets
 import tensorflow as tf
+import torch
 from DQN import *
 
 params = {
@@ -32,12 +33,12 @@ params = {
     'save_interval': 10000,
 
     # Training parameters
-    'train_start': 5000,  # Episodes before training starts
-    'batch_size': 32,  # Replay memory batch size
-    'mem_size': 100000,  # Replay memory size
+    'train_start': 1,  # Episodes before training starts
+    'batch_size': 1,  # Replay memory batch size
+    'mem_size': 10000,  # Replay memory size
 
     'discount': 0.95,  # Discount rate (gamma value)
-    'lr': .0002,  # Learning reate
+    'lr': .0002,  # Learning rate
 
     # Epsilon value (epsilon-greedy)
     'eps': 1.0,  # Epsilon start value
@@ -58,9 +59,10 @@ class PacmanDQN(game.Agent):
         self.params['num_training'] = args['numTraining']
 
         # Start Tensorflow session
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.1)
-        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-        self.qnet = DQN(self.params)
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.1)  # remove this
+        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  # remove this
+        # self.qnet = DQN(self.params)
+        self.qnet = DQN_torch(self.params).float()
 
         # time started
         self.general_record_time = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
@@ -69,7 +71,8 @@ class PacmanDQN(game.Agent):
         self.cost_disp = 0
 
         # Stats
-        self.cnt = self.qnet.sess.run(self.qnet.global_step)
+        # self.cnt = self.qnet.sess.run(self.qnet.global_step)
+        self.cnt = self.qnet.global_step
         self.local_cnt = 0
 
         self.numeps = 0
@@ -80,20 +83,23 @@ class PacmanDQN(game.Agent):
         self.replay_mem = deque()
         self.last_scores = deque()
 
-    def getMove(self, state):
+    def getMove(self):  # change this
         # Exploit / Explore
         if np.random.rand() > self.params['eps']:
             # Exploit action
-            self.Q_pred = self.qnet.sess.run(
-                self.qnet.y,
-                feed_dict={self.qnet.x: np.reshape(self.current_state,
-                                                   (1, self.params['width'], self.params['height'], 6)),
-                           self.qnet.q_t: np.zeros(1),
-                           self.qnet.actions: np.zeros((1, 4)),
-                           self.qnet.terminals: np.zeros(1),
-                           self.qnet.rewards: np.zeros(1)})[0]
-
-            self.Q_global.append(max(self.Q_pred))
+            # self.Q_pred = self.qnet.sess.run(
+            #     self.qnet.y,
+            #     feed_dict={self.qnet.x: np.reshape(self.current_state,
+            #                                        (1, self.params['width'], self.params['height'], 6)),
+            #                self.qnet.q_t: np.zeros(1),
+            #                self.qnet.actions: np.zeros((1, 4)),
+            #                self.qnet.terminals: np.zeros(1),
+            #                self.qnet.rewards: np.zeros(1)})[0]
+            curr_state = torch.from_numpy(np.reshape(self.current_state,
+                                                     (1, 6, self.params['width'], self.params['height'])))
+            self.Q_pred = self.qnet(curr_state.float()).detach().numpy()
+            # print("____{}____".format(self.Q_pred))
+            self.Q_global.append(np.max(self.Q_pred))
             a_winner = np.argwhere(self.Q_pred == np.amax(self.Q_pred))
 
             if len(a_winner) > 1:
@@ -192,13 +198,14 @@ class PacmanDQN(game.Agent):
         # Do observation
         self.terminal = True
         self.observation_step(state)
-
+        # print(type(self.Q_global))
+        # print(self.Q_global)
         # Print stats
-        log_file = open('./logs/' + str(self.general_record_time) + '-l-' + str(self.params['width']) + '-m-' + str(
-            self.params['height']) + '-x-' + str(self.params['num_training']) + '.log', 'a')
-        log_file.write("# %4d | steps: %5d | steps_t: %5d | t: %4f | r: %12f | e: %10f " %
-                       (self.numeps, self.local_cnt, self.cnt, time.time() - self.s, self.ep_rew, self.params['eps']))
-        log_file.write("| Q: %10f | won: %r \n" % (max(self.Q_global, default=float('nan')), self.won))
+        # log_file = open('./logs/' + str(self.general_record_time) + '-l-' + str(self.params['width']) + '-m-' + str(
+        #     self.params['height']) + '-x-' + str(self.params['num_training']) + '.log', 'a')
+        # log_file.write("# %4d | steps: %5d | steps_t: %5d | t: %4f | r: %12f | e: %10f " %
+        #                (self.numeps, self.local_cnt, self.cnt, time.time() - self.s, self.ep_rew, self.params['eps']))
+        # log_file.write("| Q: %10f | won: %r \n" % (max(self.Q_global, default=float('nan')), self.won))
         sys.stdout.write("# %4d | steps: %5d | steps_t: %5d | t: %4f | r: %12f | e: %10f " %
                          (self.numeps, self.local_cnt, self.cnt, time.time() - self.s, self.ep_rew, self.params['eps']))
         sys.stdout.write("| Q: %10f | won: %r \n" % (max(self.Q_global, default=float('nan')), self.won))
@@ -226,7 +233,12 @@ class PacmanDQN(game.Agent):
             batch_n = np.array(batch_n)
             batch_t = np.array(batch_t)
 
-            self.cnt, self.cost_disp = self.qnet.train(batch_s, batch_a, batch_t, batch_n, batch_r)
+            # print(batch_s.shape)
+            # print(batch_s[0].shape)
+            # print(batch_s[0])
+
+            # self.cnt, self.cost_disp = self.qnet.train(batch_s, batch_a, batch_t, batch_n, batch_r)
+            self.cnt, self.cost_disp = train_step(self.qnet, batch_s, batch_a, batch_t, batch_n, batch_r)
 
     def get_onehot(self, actions):
         """ Create list of vectors with 1 values at index of action in list """
@@ -368,7 +380,7 @@ class PacmanDQN(game.Agent):
         self.numeps += 1
 
     def getAction(self, state):
-        move = self.getMove(state)
+        move = self.getMove()
 
         # Stop moving when not legal
         legal = state.getLegalActions(0)
