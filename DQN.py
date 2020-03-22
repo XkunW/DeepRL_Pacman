@@ -178,7 +178,7 @@ def train_step(net, bat_s, bat_a, bat_t, bat_n, bat_r):
     yj.requires_grad = True
 
     loss = criterion(yj, q_pred)
-    print(loss.item())
+    # print(loss.item())
     """
     q_curr = y_curr.detach().numpy()
     max_q = np.amax(y_new.detach().numpy(), axis=1)
