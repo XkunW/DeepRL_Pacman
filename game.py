@@ -25,6 +25,7 @@ import time
 import os
 import traceback
 import sys
+import torch
 
 #######################
 # Parts worth reading #
@@ -564,6 +565,7 @@ class Game:
         self.totalAgentTimes = [0 for agent in agents]
         self.totalAgentTimeWarnings = [0 for agent in agents]
         self.agentTimeout = False
+        self.numMoves = 0
         import io
         self.agentOutput = [io.StringIO() for agent in agents]
 
@@ -608,6 +610,7 @@ class Game:
         """
         self.display.initialize(self.state.data)
         self.numMoves = 0
+        torch.manual_seed(360)
 
         # self.display.initialize(self.state.makeObservation(1).data)
         # inform learning agents of the game start
@@ -621,7 +624,7 @@ class Game:
                 self.unmute()
                 self._agentCrash(i, quiet=True)
                 return
-            if ("registerInitialState" in dir(agent)):
+            if "registerInitialState" in dir(agent):
                 self.mute(i)
                 if self.catchExceptions:
                     try:
@@ -634,12 +637,12 @@ class Game:
                             self.totalAgentTimes[i] += time_taken
                         except TimeoutFunctionException:
                             print("Agent %d ran out of time on startup!" %
-                                  i, file=sys.stderr)
+                                  i)
                             self.unmute()
                             self.agentTimeout = True
                             self._agentCrash(i, quiet=True)
                             return
-                    except Exception(data):
+                    except Exception():
                         self._agentCrash(i, quiet=False)
                         self.unmute()
                         return
@@ -671,7 +674,7 @@ class Game:
                             skip_action = True
                         move_time += time.time() - start_time
                         self.unmute()
-                    except Exception(data):
+                    except Exception():
                         self._agentCrash(agentIndex, quiet=False)
                         self.unmute()
                         return
@@ -696,7 +699,7 @@ class Game:
                         action = timed_func(observation)
                     except TimeoutFunctionException:
                         print("Agent %d timed out on a single move!" %
-                              agentIndex, file=sys.stderr)
+                              agentIndex)
                         self.agentTimeout = True
                         self._agentCrash(agentIndex, quiet=True)
                         self.unmute()
@@ -707,10 +710,10 @@ class Game:
                     if move_time > self.rules.getMoveWarningTime(agentIndex):
                         self.totalAgentTimeWarnings[agentIndex] += 1
                         print("Agent %d took too long to make a move! This is warning %d" % (
-                            agentIndex, self.totalAgentTimeWarnings[agentIndex]), file=sys.stderr)
+                            agentIndex, self.totalAgentTimeWarnings[agentIndex]))
                         if self.totalAgentTimeWarnings[agentIndex] > self.rules.getMaxTimeWarnings(agentIndex):
                             print("Agent %d exceeded the maximum number of warnings: %d" % (
-                                agentIndex, self.totalAgentTimeWarnings[agentIndex]), file=sys.stderr)
+                                agentIndex, self.totalAgentTimeWarnings[agentIndex]))
                             self.agentTimeout = True
                             self._agentCrash(agentIndex, quiet=True)
                             self.unmute()
@@ -721,13 +724,13 @@ class Game:
                     # move_time, self.totalAgentTimes[agentIndex])
                     if self.totalAgentTimes[agentIndex] > self.rules.getMaxTotalTime(agentIndex):
                         print("Agent %d ran out of time! (time: %1.2f)" % (
-                            agentIndex, self.totalAgentTimes[agentIndex]), file=sys.stderr)
+                            agentIndex, self.totalAgentTimes[agentIndex]))
                         self.agentTimeout = True
                         self._agentCrash(agentIndex, quiet=True)
                         self.unmute()
                         return
                     self.unmute()
-                except Exception(data):
+                except Exception():
                     self._agentCrash(agentIndex)
                     self.unmute()
                     return
@@ -741,7 +744,7 @@ class Game:
                 try:
                     self.state = self.state.generateSuccessor(
                         agentIndex, action)
-                except Exception(data):
+                except Exception():
                     self.mute(agentIndex)
                     self._agentCrash(agentIndex)
                     self.unmute()
@@ -772,7 +775,7 @@ class Game:
                     self.mute(agentIndex)
                     agent.final(self.state)
                     self.unmute()
-                except Exception(data):
+                except Exception():
                     if not self.catchExceptions:
                         raise
                     self._agentCrash(agentIndex)
