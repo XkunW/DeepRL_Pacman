@@ -45,10 +45,10 @@ params = {
     # Epsilon value (epsilon-greedy)
     'epsilon': 1.0,  # Epsilon start value
     'epsilon_final': 0.1,  # Epsilon end value
-    'epsilon_step': 50000,  # Epsilon steps between start and end (linear)
+    'epsilon_step': 80000,  # Epsilon steps between start and end (linear)
 
     # Whether a trained model is being loaded to test its performance on new data
-    'model_trained_complete': False
+    'model_trained_complete': True
 }
 
 
@@ -62,29 +62,25 @@ class PacmanDQN(Agent):
         self.params['width'] = args['width']
         self.params['height'] = args['height']
         self.params['num_training'] = args['numTraining']
-
-        if(self.params['model_trained_complete'] == True):
+        
+        if self.params['model_trained_complete']:
             print("Model has been trained")
+            self.params['epsilon'] = 0
             if self.params['width'] == 7: #small grid layout
                 print("loading the policy and target networks for smallGrid")
-                self.policy_net = torch.load('pacman_policy_smallGrid_network.pt').to(self.device)
-                self.target_net = torch.load('pacman_target_smallGrid_network.pt').to(self.device)
+                self.policy_net = torch.load('pacman_policy_smallGrid_network.pt').double()
+                self.target_net = torch.load('pacman_target_smallGrid_network.pt').double()
             else:
                 print("loading the policy and target networks for mediumGrid")
-                self.policy_net = torch.load('pacman_policy_mediumGrid_network.pt').to(self.device)
-                self.target_net = torch.load('pacman_target_mediumGrid_network.pt').to(self.device)
+                self.policy_net = torch.load('pacman_policy_mediumGrid_network.pt').double()
+                self.target_net = torch.load('pacman_target_mediumGrid_network.pt').double()
         else:
             print("Training model")
-
-        self.policy_net = DQN_torch(self.params).double()  # .float()
-        self.target_net = DQN_torch(self.params).double()  # .float()
-        # self.target_net.load_state_dict(self.policy_net.state_dict())
-        # self.target_net.eval()
-
+            self.policy_net = DQN_torch(self.params).double()
+            self.target_net = DQN_torch(self.params).double()
+        
         self.criterion = nn.SmoothL1Loss()
-        # self.criterion = nn.MSELoss()
-        self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=self.policy_net.params['lr'], alpha=0.95,
-                                       eps=0.01)
+        self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=self.policy_net.params['lr'], alpha=0.95, eps=0.01)
 
         # time started
         self.general_record_time = time.strftime("%a_%d_%b_%Y_%H_%M_%S", time.localtime())
@@ -115,7 +111,6 @@ class PacmanDQN(Agent):
         self.writer.writerow(['Episode Interval', 'Episode End','Average Reward (Score)', 'Average Win Rate'])
 
         # Stats
-        # self.step = self.policy_net.sess.run(self.policy_net.global_step)
         if self.params['load_file'] is None:
             self.step = 0
         else:
@@ -198,8 +193,9 @@ class PacmanDQN(Agent):
         # Next
         self.local_step += 1
         self.frame += 1
-        self.params['epsilon'] = max(self.params['epsilon_final'],
-                                     1.0 - float(self.step) / float(self.params['epsilon_step']))
+        if not self.params['model_trained_complete']:
+            self.params['epsilon'] = max(self.params['epsilon_final'],
+                                         1.0 - float(self.step) / float(self.params['epsilon_step']))
 
         return state
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 #need to change the filename to the file you want to read
-df = pd.read_csv("DQN Train Performance_03-31-00-20.csv")
+df = pd.read_csv("DQN Train Performance_03-31-16-49.csv")
 
 #choose layout
 layout= 'smallGrid'
