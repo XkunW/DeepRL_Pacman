@@ -1,6 +1,6 @@
 # Used code from
-# DQN implementation by Tejas Kulkarni found at
-# https://github.com/mrkulk/deepQN_tensorflow
+# DQN code implemented by
+# https://github.com/tychovdo/PacmanDQN
 
 # Used code from:
 # The Pacman AI projects were developed at UC Berkeley found at
@@ -23,6 +23,8 @@ from collections import deque
 # Neural nets
 import torch.optim as optim
 from DQN import *
+import datetime
+import csv
 
 params = {
     # Model backups
@@ -43,7 +45,10 @@ params = {
     # Epsilon value (epsilon-greedy)
     'epsilon': 1.0,  # Epsilon start value
     'epsilon_final': 0.1,  # Epsilon end value
-    'epsilon_step': 10000  # Epsilon steps between start and end (linear)
+    'epsilon_step': 50000,  # Epsilon steps between start and end (linear)
+
+    # Whether a trained model is being loaded to test its performance on new data
+    'model_trained_complete': False
 }
 
 
@@ -57,6 +62,19 @@ class PacmanDQN(Agent):
         self.params['width'] = args['width']
         self.params['height'] = args['height']
         self.params['num_training'] = args['numTraining']
+
+        if(self.params['model_trained_complete'] == True):
+            print("Model has been trained")
+            if self.params['width'] == 7: #small grid layout
+                print("loading the policy and target networks for smallGrid")
+                self.policy_net = torch.load('pacman_policy_smallGrid_network.pt').to(self.device)
+                self.target_net = torch.load('pacman_target_smallGrid_network.pt').to(self.device)
+            else:
+                print("loading the policy and target networks for mediumGrid")
+                self.policy_net = torch.load('pacman_policy_mediumGrid_network.pt').to(self.device)
+                self.target_net = torch.load('pacman_target_mediumGrid_network.pt').to(self.device)
+        else:
+            print("Training model")
 
         self.policy_net = DQN_torch(self.params).double()  # .float()
         self.target_net = DQN_torch(self.params).double()  # .float()
@@ -86,6 +104,16 @@ class PacmanDQN(Agent):
         self.delay = 0
         self.frame = 0
 
+        #record performance at the end of each episode for plotting results
+        self.win_history = [] #win rate per 100 episode
+        self.reward_history = [] #average game score per 100 episode
+
+        date_string = datetime.datetime.now().strftime("%m-%d-%H-%M")
+        csvFile = open("DQN Train Performance_"  + date_string + '.csv', 'a', newline='')
+        self.writer = csv.writer(csvFile)
+        #add column names
+        self.writer.writerow(['Episode Interval', 'Episode End','Average Reward (Score)', 'Average Win Rate'])
+
         # Stats
         # self.step = self.policy_net.sess.run(self.policy_net.global_step)
         if self.params['load_file'] is None:
@@ -109,7 +137,7 @@ class PacmanDQN(Agent):
             # Exploit action
             curr_state = torch.from_numpy(np.reshape(self.current_state,
                                                      (1, 6, self.params['height'], self.params['width'])))
-            # self.Q_pred = self.policy_net(curr_state.float()).detach().numpy()
+
             self.Q_pred = self.policy_net(curr_state.type(torch.DoubleTensor)).detach().numpy()
             self.Q_global.append(np.max(self.Q_pred))
             best_a = np.argmax(self.Q_pred)
@@ -182,13 +210,41 @@ class PacmanDQN(Agent):
         # Do observation
         self.observationFunction(state, terminal=True)
 
+        #update target network to policy network every 100 episodes
         if self.num_eps % 100 == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
+
+        #for plotting purposes, record game reward and win status
+        self.reward_history.append(self.episode_r)
+        self.win_history.append(self.won)
+
+        #save the average training data to an excel file
+        if self.num_eps % 100 == 0:
+            #calculate statistics
+            win_rate = np.sum(self.win_history)/100 #the number of games won out of 100
+            avg_score = np.nanmean(self.reward_history) # the mean ignoring nans
+
+            interval = str(self.num_eps-100) + "-" + str(self.num_eps)
+            #['Episode Intervalm', 'episode end','Average Reward (Score)', 'Average Win Rate']
+            self.writer.writerow([interval, self.num_eps, avg_score, win_rate])
+
+            #reset the win rate and avg score recorders for the next 100 episodes
+            self.reward_history = []
+            self.win_history = []
+
+            # save model. The file names are different depending on the layout
+            if self.params['width'] == 7: #small grid layout
+                torch.save(self.policy_net, 'pacman_policy_smallGrid_network.pt')
+                torch.save(self.target_net, 'pacman_target_smallGrid_network.pt')
+            else:
+                torch.save(self.policy_net, 'pacman_policy_mediumGrid_network.pt')
+                torch.save(self.target_net, 'pacman_target_mediumGrid_network.pt')
 
         sys.stdout.write("# %4d | steps: %5d | steps_t: %5d | t: %4f | r: %12f | e: %10f " %
                          (self.num_eps, self.local_step, self.step, time.time() - self.s, self.episode_r, self.params['epsilon']))
         sys.stdout.write("| Q: %10f | won: %r \n" % (max(self.Q_global, default=float('nan')), self.won))
         sys.stdout.flush()
+
 
     def train(self):
         # Train

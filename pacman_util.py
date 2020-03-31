@@ -1,5 +1,9 @@
 import numpy as np
 from pacman import Directions
+# Used code from
+# DQN code implemented by
+# https://github.com/tychovdo/PacmanDQN
+
 
 
 def getOneHot(actions, batch_size):
