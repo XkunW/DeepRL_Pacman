@@ -62,7 +62,7 @@ class PacmanDQN(Agent):
         self.params['width'] = args['width']
         self.params['height'] = args['height']
         self.params['num_training'] = args['numTraining']
-        
+
         if self.params['model_trained_complete']:
             print("Model has been trained")
             self.params['epsilon'] = 0
@@ -72,13 +72,13 @@ class PacmanDQN(Agent):
                 self.target_net = torch.load('pacman_target_smallGrid_network.pt').double()
             else:
                 print("loading the policy and target networks for mediumGrid")
-                self.policy_net = torch.load('pacman_policy_mediumGrid_network.pt').double()
-                self.target_net = torch.load('pacman_target_mediumGrid_network.pt').double()
+                self.policy_net = torch.load('pacman_policy_smallClassic_network.pt').double()
+                self.target_net = torch.load('pacman_policy_smallClassic_network.pt').double()
         else:
             print("Training model")
             self.policy_net = DQN_torch(self.params).double()
             self.target_net = DQN_torch(self.params).double()
-        
+
         self.criterion = nn.SmoothL1Loss()
         self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=self.policy_net.params['lr'], alpha=0.95, eps=0.01)
 
@@ -230,11 +230,13 @@ class PacmanDQN(Agent):
 
             # save model. The file names are different depending on the layout
             if self.params['width'] == 7: #small grid layout
-                torch.save(self.policy_net, 'pacman_policy_smallGrid_network.pt')
-                torch.save(self.target_net, 'pacman_target_smallGrid_network.pt')
+                if not self.params['model_trained_complete']: #no need to save model during testing
+                    torch.save(self.policy_net, 'pacman_policy_smallGrid_network.pt')
+                    torch.save(self.target_net, 'pacman_target_smallGrid_network.pt')
             else:
-                torch.save(self.policy_net, 'pacman_policy_mediumGrid_network.pt')
-                torch.save(self.target_net, 'pacman_target_mediumGrid_network.pt')
+                if not self.params['model_trained_complete']: #no need to save model during testing
+                    torch.save(self.policy_net, 'pacman_policy_smallClassic_network.pt')
+                    torch.save(self.target_net, 'pacman_policy_smallClassic_network.pt')
 
         sys.stdout.write("# %4d | steps: %5d | steps_t: %5d | t: %4f | r: %12f | e: %10f " %
                          (self.num_eps, self.local_step, self.step, time.time() - self.s, self.episode_r, self.params['epsilon']))
